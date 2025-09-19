@@ -1,0 +1,6 @@
+@LearningCopilot_HostAddress = http://localhost:5031
+
+GET {{LearningCopilot_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
