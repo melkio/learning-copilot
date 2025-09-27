@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning Copilot - Gestione Corsi</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Learning Copilot</h1>
+            <nav>
+                <button id="nav-courses" class="nav-btn active">Corsi Disponibili</button>
+                <button id="nav-my-courses" class="nav-btn">I Miei Corsi</button>
+                <button id="nav-profile" class="nav-btn">Profilo</button>
+            </nav>
+        </header>
+
+        <!-- Login Section -->
+        <div id="login-section" class="section">
+            <div class="login-form">
+                <h2>Accedi</h2>
+                <div class="form-group">
+                    <label for="username">Nome Utente:</label>
+                    <input type="text" id="username" placeholder="Inserisci il tuo nome utente">
+                </div>
+                <button id="login-btn" class="btn btn-primary">Accedi</button>
+            </div>
+        </div>
+
+        <!-- Available Courses Section -->
+        <div id="courses-section" class="section hidden">
+            <h2>Corsi Disponibili</h2>
+            <div id="courses-list" class="courses-grid"></div>
+        </div>
+
+        <!-- My Courses Section -->
+        <div id="my-courses-section" class="section hidden">
+            <h2>I Miei Corsi</h2>
+            <div id="my-courses-list" class="courses-grid"></div>
+            <div id="no-courses-message" class="no-courses hidden">
+                <p>Non sei ancora iscritto a nessun corso.</p>
+                <button id="browse-courses-btn" class="btn btn-secondary">Esplora i Corsi</button>
+            </div>
+        </div>
+
+        <!-- Profile Section -->
+        <div id="profile-section" class="section hidden">
+            <h2>Profilo Utente</h2>
+            <div class="profile-info">
+                <p><strong>Nome Utente:</strong> <span id="profile-username"></span></p>
+                <p><strong>Corsi Iscritti:</strong> <span id="profile-course-count">0</span></p>
+                <button id="logout-btn" class="btn btn-danger">Logout</button>
+            </div>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <div id="message-container" class="message-container"></div>
+
+        <!-- Confirmation Modal -->
+        <div id="confirmation-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>Conferma Cancellazione</h3>
+                <p id="confirmation-message"></p>
+                <div class="modal-actions">
+                    <button id="confirm-cancel" class="btn btn-danger">Conferma</button>
+                    <button id="cancel-modal" class="btn btn-secondary">Annulla</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
