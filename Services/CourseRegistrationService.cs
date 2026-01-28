@@ -9,6 +9,8 @@ public class CourseRegistrationService : ICourseRegistrationService
     private readonly ConcurrentDictionary<int, Course> _courses = new();
     private readonly ConcurrentDictionary<int, User> _users = new();
     private readonly ConcurrentDictionary<int, Registration> _registrations = new();
+    private readonly object _registrationLock = new();
+    private readonly object _unregistrationLock = new();
     private int _nextCourseId = 1;
     private int _nextUserId = 1;
     private int _nextRegistrationId = 1;
@@ -109,50 +111,54 @@ public class CourseRegistrationService : ICourseRegistrationService
                     false, "Course not found", null));
             }
 
-            // Check if user is already registered for this course
-            var existingRegistration = _registrations.Values
-                .FirstOrDefault(r => r.UserId == request.UserId && r.CourseId == request.CourseId && r.IsActive);
-            
-            if (existingRegistration != null)
+            // Use lock to ensure thread-safe registration creation
+            lock (_registrationLock)
             {
+                // Check if user is already registered for this course
+                var existingRegistration = _registrations.Values
+                    .FirstOrDefault(r => r.UserId == request.UserId && r.CourseId == request.CourseId && r.IsActive);
+                
+                if (existingRegistration != null)
+                {
+                    return Task.FromResult(new ApiResponse<RegistrationDto>(
+                        false, "User is already registered for this course", null));
+                }
+
+                // Check if course has available spots
+                var currentRegistrations = _registrations.Values
+                    .Count(r => r.CourseId == request.CourseId && r.IsActive);
+                
+                if (currentRegistrations >= course.MaxParticipants)
+                {
+                    return Task.FromResult(new ApiResponse<RegistrationDto>(
+                        false, "Course is full", null));
+                }
+
+                // Create new registration
+                var registration = new Registration
+                {
+                    Id = Interlocked.Increment(ref _nextRegistrationId),
+                    UserId = request.UserId,
+                    CourseId = request.CourseId,
+                    RegistrationDate = DateTime.UtcNow
+                };
+
+                _registrations.TryAdd(registration.Id, registration);
+
+                var registrationDto = new RegistrationDto(
+                    registration.Id,
+                    user.Id,
+                    user.FullName,
+                    user.Email,
+                    course.Id,
+                    course.Title,
+                    registration.RegistrationDate,
+                    registration.IsActive
+                );
+
                 return Task.FromResult(new ApiResponse<RegistrationDto>(
-                    false, "User is already registered for this course", null));
+                    true, $"Successfully registered for {course.Title}", registrationDto));
             }
-
-            // Check if course has available spots
-            var currentRegistrations = _registrations.Values
-                .Count(r => r.CourseId == request.CourseId && r.IsActive);
-            
-            if (currentRegistrations >= course.MaxParticipants)
-            {
-                return Task.FromResult(new ApiResponse<RegistrationDto>(
-                    false, "Course is full", null));
-            }
-
-            // Create new registration
-            var registration = new Registration
-            {
-                Id = Interlocked.Increment(ref _nextRegistrationId),
-                UserId = request.UserId,
-                CourseId = request.CourseId,
-                RegistrationDate = DateTime.UtcNow
-            };
-
-            _registrations.TryAdd(registration.Id, registration);
-
-            var registrationDto = new RegistrationDto(
-                registration.Id,
-                user.Id,
-                user.FullName,
-                user.Email,
-                course.Id,
-                course.Title,
-                registration.RegistrationDate,
-                registration.IsActive
-            );
-
-            return Task.FromResult(new ApiResponse<RegistrationDto>(
-                true, $"Successfully registered for {course.Title}", registrationDto));
         }
         catch (Exception ex)
         {
@@ -177,28 +183,32 @@ public class CourseRegistrationService : ICourseRegistrationService
                     false, "Course not found", null));
             }
 
-            // Find active registration
-            var registration = _registrations.Values
-                .FirstOrDefault(r => r.UserId == request.UserId && r.CourseId == request.CourseId && r.IsActive);
-
-            if (registration == null)
+            // Use lock to ensure thread-safe unregistration
+            lock (_unregistrationLock)
             {
+                // Find active registration
+                var registration = _registrations.Values
+                    .FirstOrDefault(r => r.UserId == request.UserId && r.CourseId == request.CourseId && r.IsActive);
+
+                if (registration == null)
+                {
+                    return Task.FromResult(new ApiResponse<string>(
+                        false, "No active registration found for this user and course", null));
+                }
+
+                // Mark registration as inactive
+                registration.UnregistrationDate = DateTime.UtcNow;
+                registration.UnregistrationReason = request.Reason;
+
+                var message = $"Successfully unregistered {user.FullName} from {course.Title}";
+                if (!string.IsNullOrWhiteSpace(request.Reason))
+                {
+                    message += $". Reason: {request.Reason}";
+                }
+
                 return Task.FromResult(new ApiResponse<string>(
-                    false, "No active registration found for this user and course", null));
+                    true, message, message));
             }
-
-            // Mark registration as inactive
-            registration.UnregistrationDate = DateTime.UtcNow;
-            registration.UnregistrationReason = request.Reason;
-
-            var message = $"Successfully unregistered {user.FullName} from {course.Title}";
-            if (!string.IsNullOrWhiteSpace(request.Reason))
-            {
-                message += $". Reason: {request.Reason}";
-            }
-
-            return Task.FromResult(new ApiResponse<string>(
-                true, message, message));
         }
         catch (Exception ex)
         {
@@ -224,15 +234,13 @@ public class CourseRegistrationService : ICourseRegistrationService
             var activeRegistrations = userRegistrations
                 .Where(r => r.IsActive)
                 .Select(r => CreateRegistrationDto(r))
-                .Where(dto => dto != null)
-                .Cast<RegistrationDto>()
+                .OfType<RegistrationDto>()
                 .ToList();
 
             var pastRegistrations = userRegistrations
                 .Where(r => !r.IsActive)
                 .Select(r => CreateRegistrationDto(r))
-                .Where(dto => dto != null)
-                .Cast<RegistrationDto>()
+                .OfType<RegistrationDto>()
                 .ToList();
 
             var response = new UserRegistrationsResponse(
@@ -305,8 +313,7 @@ public class CourseRegistrationService : ICourseRegistrationService
             var registrations = _registrations.Values
                 .Where(r => r.CourseId == courseId && r.IsActive)
                 .Select(r => CreateRegistrationDto(r))
-                .Where(dto => dto != null)
-                .Cast<RegistrationDto>()
+                .OfType<RegistrationDto>()
                 .ToList();
 
             return Task.FromResult(new ApiResponse<List<RegistrationDto>>(
